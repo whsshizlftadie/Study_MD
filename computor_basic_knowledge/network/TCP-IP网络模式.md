@@ -49,3 +49,15 @@
 如果不正常情况下，某数据发送超时了，发送方会重新发送，如果只要不是重新发送了第一次握手的数据问题不大，因为接收方会从SEQ序列和ACK序列号知道该数据是否重复（SEQ序列和ACK序列是三次握手数据包所包含的内容），如果第一次就超时，这时服务器端就受到了两次SYN请求，服务器端是无法判断是否重复的，所以它会当作一个全新的请求他还是会发送一个SYN+ACK请求的响应，这样客户端就会收到两份SYN+ACK的响应数据，这两份的SEQ和ACK是完全一样的，所以客户端会知道这是一个重复的数据会将其抛弃，但是服务端不能解决的是第一次握手是否重复，如果是两次握手的话，SYN+ACK请求发送后就会建立连接，对于服务端来说如果出现第一次连接发送超时的情况下两次SYN请求就会都接收会建立两个连接这样对于服务端压力会增大，严重可能导致服务器崩溃。
 ```
 
+###### 3-2四次握手
+
+```verilog
+还是以user和serve为例
+-user向serve发送FIN到serve，user从Established变为FIN_WAIT1状态
+-serve收到FIN后从Established状态变为CLOSE_WAIT，并发送ACK请求到user
+-user收到ACK请求后，状态从FIN_WAIT1变为FIN_WAIT2，并继续等待
+-serve继续会发送FIN指令并将状态从CLOSE_WAIT变为LAST_ACK，user收到了FIN后会将状态变为TIME_WAIT（为了防止ACK指令没有发送成功，会再次接收serve重发的FIN指令）并发送ACK指令
+-serve收到ACK后会将状态设置为CLOESD关闭
+-关于user变为CLOSED，它定时器TIME_WAIT超时后才会CLOSED，防止之前user发送的ACK没有成功而serve重新发送FIN
+```
+
