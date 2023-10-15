@@ -117,3 +117,15 @@ wget https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.7.0
 
 ## 2-基本使用
 
+#### 2.0 配置文件
+
+```xml
+
+```
+
+
+
+#### 2.1 接口继承ElasticsearchRepository<pojo,key_type>
+
+#### 2.2 使用RestTemplate
+
