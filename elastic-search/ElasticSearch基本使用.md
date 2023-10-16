@@ -354,7 +354,7 @@ NativeSearchQuery nativeSearchQuery = new NativeSearchQueryBuilder()
 
 
 
-### 2.2 使用RestTemplate
+### 2.2 使用RestHighLevelClient 
 
 ### **2.3高亮查询**
 
