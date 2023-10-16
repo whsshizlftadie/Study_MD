@@ -134,7 +134,7 @@ wget https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.7.0
 spring:
   elasticsearch:
     rest:
-      uris: 120.48.83.26:9200
+      uris: 0.0.0.0:9200
 
 ```
 
