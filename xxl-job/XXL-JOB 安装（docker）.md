@@ -1,0 +1,216 @@
+# XXL-JOB 安装（docker）
+
+
+
+```bash
+docker pull xuxueli/xxl-job-admin:2.3.1
+
+//创建映射容器的文件目录
+
+mkdir -p -m 777 /mydata/xxl-job/data/applogs
+
+//创建application.properties文件，修改数据库相关信息然后放入到/mydata/xxl-job目录下
+
+### web
+server.port=8080
+server.servlet.context-path=/xxl-job-admin
+ 
+### actuator
+management.server.servlet.context-path=/actuator
+management.health.mail.enabled=false
+ 
+### resources
+spring.mvc.servlet.load-on-startup=0
+spring.mvc.static-path-pattern=/static/**
+spring.resources.static-locations=classpath:/static/
+ 
+### freemarker
+spring.freemarker.templateLoaderPath=classpath:/templates/
+spring.freemarker.suffix=.ftl
+spring.freemarker.charset=UTF-8
+spring.freemarker.request-context-attribute=request
+spring.freemarker.settings.number_format=0.##########
+ 
+### mybatis
+mybatis.mapper-locations=classpath:/mybatis-mapper/*Mapper.xml
+#mybatis.type-aliases-package=com.xxl.job.admin.core.model
+ 
+### xxl-job, datasource
+spring.datasource.url=jdbc:mysql://192.168.3.128:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&serverTimezone=Asia/Shanghai
+spring.datasource.username=root
+spring.datasource.password=root
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+ 
+### datasource-pool
+spring.datasource.type=com.zaxxer.hikari.HikariDataSource
+spring.datasource.hikari.minimum-idle=10
+spring.datasource.hikari.maximum-pool-size=30
+spring.datasource.hikari.auto-commit=true
+spring.datasource.hikari.idle-timeout=30000
+spring.datasource.hikari.pool-name=HikariCP
+spring.datasource.hikari.max-lifetime=900000
+spring.datasource.hikari.connection-timeout=10000
+spring.datasource.hikari.connection-test-query=SELECT 1
+spring.datasource.hikari.validation-timeout=1000
+ 
+### xxl-job, email
+spring.mail.host=smtp.qq.com
+spring.mail.port=25
+spring.mail.username=xxx@qq.com
+spring.mail.from=xxx@qq.com
+spring.mail.password=xxx
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+spring.mail.properties.mail.smtp.starttls.required=true
+spring.mail.properties.mail.smtp.socketFactory.class=javax.net.ssl.SSLSocketFactory
+ 
+### xxl-job, access token
+xxl.job.accessToken=default_token
+ 
+### xxl-job, i18n (default is zh_CN, and you can choose "zh_CN", "zh_TC" and "en")
+xxl.job.i18n=zh_CN
+ 
+## xxl-job, triggerpool max size
+xxl.job.triggerpool.fast.max=200
+xxl.job.triggerpool.slow.max=100
+ 
+### xxl-job, log retention days
+xxl.job.logretentiondays=30
+
+
+//导入mysql数据库，执行tables_xxl_job.sql
+
+#
+# XXL-JOB v2.3.1
+# Copyright (c) 2015-present, xuxueli.
+ 
+CREATE database if NOT EXISTS `xxl_job` default character set utf8mb4 collate utf8mb4_unicode_ci;
+use `xxl_job`;
+ 
+SET NAMES utf8mb4;
+ 
+CREATE TABLE `xxl_job_info` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `job_group` int(11) NOT NULL COMMENT '执行器主键ID',
+  `job_desc` varchar(255) NOT NULL,
+  `add_time` datetime DEFAULT NULL,
+  `update_time` datetime DEFAULT NULL,
+  `author` varchar(64) DEFAULT NULL COMMENT '作者',
+  `alarm_email` varchar(255) DEFAULT NULL COMMENT '报警邮件',
+  `schedule_type` varchar(50) NOT NULL DEFAULT 'NONE' COMMENT '调度类型',
+  `schedule_conf` varchar(128) DEFAULT NULL COMMENT '调度配置，值含义取决于调度类型',
+  `misfire_strategy` varchar(50) NOT NULL DEFAULT 'DO_NOTHING' COMMENT '调度过期策略',
+  `executor_route_strategy` varchar(50) DEFAULT NULL COMMENT '执行器路由策略',
+  `executor_handler` varchar(255) DEFAULT NULL COMMENT '执行器任务handler',
+  `executor_param` varchar(512) DEFAULT NULL COMMENT '执行器任务参数',
+  `executor_block_strategy` varchar(50) DEFAULT NULL COMMENT '阻塞处理策略',
+  `executor_timeout` int(11) NOT NULL DEFAULT '0' COMMENT '任务执行超时时间，单位秒',
+  `executor_fail_retry_count` int(11) NOT NULL DEFAULT '0' COMMENT '失败重试次数',
+  `glue_type` varchar(50) NOT NULL COMMENT 'GLUE类型',
+  `glue_source` mediumtext COMMENT 'GLUE源代码',
+  `glue_remark` varchar(128) DEFAULT NULL COMMENT 'GLUE备注',
+  `glue_updatetime` datetime DEFAULT NULL COMMENT 'GLUE更新时间',
+  `child_jobid` varchar(255) DEFAULT NULL COMMENT '子任务ID，多个逗号分隔',
+  `trigger_status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '调度状态：0-停止，1-运行',
+  `trigger_last_time` bigint(13) NOT NULL DEFAULT '0' COMMENT '上次调度时间',
+  `trigger_next_time` bigint(13) NOT NULL DEFAULT '0' COMMENT '下次调度时间',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+CREATE TABLE `xxl_job_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `job_group` int(11) NOT NULL COMMENT '执行器主键ID',
+  `job_id` int(11) NOT NULL COMMENT '任务，主键ID',
+  `executor_address` varchar(255) DEFAULT NULL COMMENT '执行器地址，本次执行的地址',
+  `executor_handler` varchar(255) DEFAULT NULL COMMENT '执行器任务handler',
+  `executor_param` varchar(512) DEFAULT NULL COMMENT '执行器任务参数',
+  `executor_sharding_param` varchar(20) DEFAULT NULL COMMENT '执行器任务分片参数，格式如 1/2',
+  `executor_fail_retry_count` int(11) NOT NULL DEFAULT '0' COMMENT '失败重试次数',
+  `trigger_time` datetime DEFAULT NULL COMMENT '调度-时间',
+  `trigger_code` int(11) NOT NULL COMMENT '调度-结果',
+  `trigger_msg` text COMMENT '调度-日志',
+  `handle_time` datetime DEFAULT NULL COMMENT '执行-时间',
+  `handle_code` int(11) NOT NULL COMMENT '执行-状态',
+  `handle_msg` text COMMENT '执行-日志',
+  `alarm_status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '告警状态：0-默认、1-无需告警、2-告警成功、3-告警失败',
+  PRIMARY KEY (`id`),
+  KEY `I_trigger_time` (`trigger_time`),
+  KEY `I_handle_code` (`handle_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+CREATE TABLE `xxl_job_log_report` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `trigger_day` datetime DEFAULT NULL COMMENT '调度-时间',
+  `running_count` int(11) NOT NULL DEFAULT '0' COMMENT '运行中-日志数量',
+  `suc_count` int(11) NOT NULL DEFAULT '0' COMMENT '执行成功-日志数量',
+  `fail_count` int(11) NOT NULL DEFAULT '0' COMMENT '执行失败-日志数量',
+  `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `i_trigger_day` (`trigger_day`) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+CREATE TABLE `xxl_job_logglue` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `job_id` int(11) NOT NULL COMMENT '任务，主键ID',
+  `glue_type` varchar(50) DEFAULT NULL COMMENT 'GLUE类型',
+  `glue_source` mediumtext COMMENT 'GLUE源代码',
+  `glue_remark` varchar(128) NOT NULL COMMENT 'GLUE备注',
+  `add_time` datetime DEFAULT NULL,
+  `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+CREATE TABLE `xxl_job_registry` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `registry_group` varchar(50) NOT NULL,
+  `registry_key` varchar(255) NOT NULL,
+  `registry_value` varchar(255) NOT NULL,
+  `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `i_g_k_v` (`registry_group`,`registry_key`,`registry_value`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+CREATE TABLE `xxl_job_group` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `app_name` varchar(64) NOT NULL COMMENT '执行器AppName',
+  `title` varchar(12) NOT NULL COMMENT '执行器名称',
+  `address_type` tinyint(4) NOT NULL DEFAULT '0' COMMENT '执行器地址类型：0=自动注册、1=手动录入',
+  `address_list` text COMMENT '执行器地址列表，多地址逗号分隔',
+  `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+CREATE TABLE `xxl_job_user` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL COMMENT '账号',
+  `password` varchar(50) NOT NULL COMMENT '密码',
+  `role` tinyint(4) NOT NULL COMMENT '角色：0-普通用户、1-管理员',
+  `permission` varchar(255) DEFAULT NULL COMMENT '权限：执行器ID列表，多个逗号分割',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `i_username` (`username`) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+CREATE TABLE `xxl_job_lock` (
+  `lock_name` varchar(50) NOT NULL COMMENT '锁名称',
+  PRIMARY KEY (`lock_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+INSERT INTO `xxl_job_group`(`id`, `app_name`, `title`, `address_type`, `address_list`, `update_time`) VALUES (1, 'xxl-job-executor-sample', '示例执行器', 0, NULL, '2018-11-03 22:21:31' );
+INSERT INTO `xxl_job_info`(`id`, `job_group`, `job_desc`, `add_time`, `update_time`, `author`, `alarm_email`, `schedule_type`, `schedule_conf`, `misfire_strategy`, `executor_route_strategy`, `executor_handler`, `executor_param`, `executor_block_strategy`, `executor_timeout`, `executor_fail_retry_count`, `glue_type`, `glue_source`, `glue_remark`, `glue_updatetime`, `child_jobid`) VALUES (1, 1, '测试任务1', '2018-11-03 22:21:31', '2018-11-03 22:21:31', 'XXL', '', 'CRON', '0 0 0 * * ? *', 'DO_NOTHING', 'FIRST', 'demoJobHandler', '', 'SERIAL_EXECUTION', 0, 0, 'BEAN', '', 'GLUE代码初始化', '2018-11-03 22:21:31', '');
+INSERT INTO `xxl_job_user`(`id`, `username`, `password`, `role`, `permission`) VALUES (1, 'admin', 'e10adc3949ba59abbe56e057f20f883e', 1, NULL);
+INSERT INTO `xxl_job_lock` ( `lock_name`) VALUES ( 'schedule_lock');
+ 
+commit;
+ 
+ 
+ 
+
+//执行docker命令
+
+docker run  -p 8089:8080 -d --name=xxl-job-admin --restart=always -v /mydata/xxl-job/application.properties:/application.properties  -e PARAMS='--spring.config.location=/application.properties' xuxueli/xxl-job-admin:2.3.1
+
+浏览器访问：账号：admin  密码：123456
+
+修改默认密码也是在浏览器中
+```
+

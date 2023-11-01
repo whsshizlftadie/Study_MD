@@ -245,6 +245,102 @@ public class WebSecurityConfig {
 }
 ```
 
+### 认证失败处理
+
+```java
+@Component
+public class MyUnauthorizedHandler implements AuthenticationEntryPoint {
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json");
+        response.getWriter().println("认证失败");
+        response.getWriter().flush();
+    }
+}
+
+
+...
+    
+将其配置到config中
+    
+...
+public class WebSecurityConfig {
+
+    @Autowired
+    private MyUnauthorizedHandler unauthorizedHandler;
+    ...
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
+        ...
+        httpSecurity.exceptionHandling()
+                .authenticationEntryPoint(unauthorizedHandler);
+
+        return httpSecurity.build();
+    }
+}
+```
+
+### 授权失败处理
+
+```java
+@Component
+public class MyAccessDeniedHandler implements AccessDeniedHandler {
+    @Override
+    public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException, ServletException {
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json");
+        response.getWriter().println("禁止访问");
+        response.getWriter().flush();
+    }
+}
+
+...
+    
+将其配置到config中
+    
+...
+   ...
+public class WebSecurityConfig {
+
+    @Autowired
+    private MyAccessDeniedHandler accessDeniedHandler;
+
+    ...
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
+        ...
+        httpSecurity.exceptionHandling()
+                .accessDeniedHandler(accessDeniedHandler);
+
+        return httpSecurity.build();
+    }
+}
+```
+
+### 支持方法级别的授权
+
+在web配置类添加一个注解，如下所示。
+
+```
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class WebSecurityConfig {
+    ...
+}
+```
+
+然后在controller里使用`@PreAuthorize`注解，里面使用spring表达式(SpEL)来设置条件，例如下面的api只允许admin角色方法。
+
+```java
+@PreAuthorize("hasRole('admin')")
+@GetMapping("/users/{id}")
+public String getUserDetail(@PathVariable String id){
+    return "用户详情:" + id;
+}
+```
+
 
 
 ## 单体方案2
