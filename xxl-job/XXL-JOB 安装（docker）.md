@@ -209,6 +209,9 @@ commit;
 
 docker run  -p 8089:8080 -d --name=xxl-job-admin --restart=always -v /mydata/xxl-job/application.properties:/application.properties  -e PARAMS='--spring.config.location=/application.properties' xuxueli/xxl-job-admin:2.3.1
 
+
+docker run  -p 18080:8080 -d --name=xxl-job-admin --restart=always -v /mydata/xxl-job/application.properties:/application.properties  -e PARAMS='--spring.config.location=/application.properties' xuxueli/xxl-job-admin:2.3.1
+
 浏览器访问：账号：admin  密码：123456
 
 修改默认密码也是在浏览器中
