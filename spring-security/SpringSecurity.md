@@ -347,5 +347,23 @@ public String getUserDetail(@PathVariable String id){
 
 
 
-## 微服务方案
+## 微服务方案 Oauth2.0+GateWay
+
+
+
+### oauth2.0 对外暴露的重要端口
+
+#### (1)申请token接口/oauth/token
+
+  /oauth/token接口在org.[springframework](https://so.csdn.net/so/search?q=springframework&spm=1001.2101.3001.7020).security.oauth2.provider.endpoint里的TokenEndpoint类里， 该接口会以post请求方式对外提供以表单形式的认证方式，通过了就会返回带期限的token。
+
+通过表单的形式提交, 通过后会返回一个带期限的access_token， 如下用客户端模式去申请token:
+
+
+
+
+
+
+
+
 

@@ -564,7 +564,7 @@ public class OrderServiceImpl implements OrderService {
 
 #### 关于Feign超时问题(两种方案)
 
-方案一
+##### 方案一
 
 ```yaml
 # feign调用超时时间配置
@@ -578,7 +578,7 @@ feign:
     enabled: false    # 不要开启hystrix，会导致超时配置不生效
 ```
 
-方案二：
+##### 方案二：
 
 ```yaml
 # 配置 feign 默认请求时间仅几秒钟，配置请求时间长一些(毫秒)
