@@ -922,4 +922,196 @@ public class FilterContextConfig {
 
 3-排队等待: 字面意思，设置超时时间，排队时间超过时间限制则失败抛异常。
 
+
+
+#### 5-降级规则
+
+![image-20231119134742280](D:\note-md\spring-cloud-alibaba\image-20231119134742280.png)
+
+1-RT （平均响应时间）：当资源的平均响应时间超过阈值（ms单位）之后资源进入准降级规则。如果接下来几个请求在1s内，他们的RT都超过了阈值，那么接下来时间窗口之内，就会对这个方法降级。
+
+RT的默认最大上限为4900ms，若想改变这个上限需要在jar包启动命令中加上参数 -Dcsp.sentinel.statistic.max.rt=XXX设置。
+
+2-异常比例：当资源服务请求出现异常比例达到阈值，进入降级。
+
+3-异常数：字面意思，当出现异常次数达到阈值进入降级处理。
+
+#### 6-热点规则
+
+热点参数流控规则是更细粒度的流控规则，他也允许规则具体到参数上。
+
+1，编写代码
+
+```java
+	@GetMapping("/order/params")
+    @SentinelResource("params") //必须有这个注解，不然热点规则不生效
+    public String params(String s){
+        return s;
+    }
+```
+
+添加热点规则：
+
+![image-20231119185216321](D:\note-md\spring-cloud-alibaba\image-20231119185216321.png)
+
+参数索引就是参数从左往右的顺序0就是第一个参数。
+
+还可以在编辑界面，更精确到参数的值比如：
+
+![image-20231119185709566](D:\note-md\spring-cloud-alibaba\image-20231119185709566.png)
+
+当值为123时进行流控QPS为2.
+
+#### 7-授权规则
+
+根据来源进行控制。
+
+![image-20231119190012728](D:\note-md\spring-cloud-alibaba\image-20231119190012728.png)
+
+若配置白名单：则只有请求来源于白名单才能通过。
+
+若配置黑名单：则请求位于黑名单时不能通过，其余的都能通过。
+
+资源名和授权类型都比较好理解，流控应用的填写有一定的规则：
+
+Sentinel提供了RequestOriginParser，只要Sentinel保护的接口被访问，Sentinel就会调用RequestOriginParser的实现类去解析访问来源。
+
+1，自定义来源处理规则：
+
+```java
+import com.alibaba.csp.sentinel.adapter.servlet.callback.RequestOriginParser;
+import com.alibaba.csp.sentinel.adapter.servlet.callback.WebCallbackManager;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
+
+import javax.annotation.PostConstruct;
+import javax.servlet.http.HttpServletRequest;
+
+@Configuration      // 交由spring管理，否则拿不到RequestOriginParser实现类，授权规则不生效
+public class RequestOriginParserDefinition implements RequestOriginParser {
+    @Autowired
+    private RequestOriginParser requestOriginParser;
+
+    // 获取调用方标识信息并返回
+    @Override
+    public String parseOrigin(HttpServletRequest request) {
+        String serviceName = request.getParameter("serviceName");
+        System.out.println(serviceName);
+        StringBuffer url = request.getRequestURL();
+        if (url.toString().endsWith("favicon.ico")) {
+            // 浏览器会向后台请求favicon.ico图标
+            return serviceName;
+        }
+
+        if (StringUtils.isEmpty(serviceName)) {
+            throw new IllegalArgumentException("serviceName must not be null");
+        }
+
+        return serviceName;
+    }
+/**没有这一步，无法处理，我猜应该是，前面yaml配置的sentinel.filter.enabled一起覆盖了，如果没有使用这种方式启动热点链路流控应该没有这个问题**/
+    @PostConstruct
+    public void initParser() {
+        WebCallbackManager.setRequestOriginParser(requestOriginParser);
+    }
+
+}
+```
+
+到这里授权规则就正常了。
+
+#### 8-系统规则
+
+系统规则保护的是应用维度而不是资源维度
+
+![image-20231119231136425](D:\note-md\spring-cloud-alibaba\image-20231119231136425.png)
+
+Load（仅对Linux/Unix-like机器生效）：当系统load1（一分钟之内）超过阈值，且系统当前的并发线程数超过系统容量时才会触发系统保护。系统容量由系统的 maxQps*minRt计算得出。设定参考值一般是CPU cores * 2.5。
+CPU usage（1.5.0+ 版本）：当系统CPU使用率超过阈值即触发系统保护（取值范围 0.0-1.0）。
+RT：当单台机器上所有入口流量的平均RT达到阈值即触发系统保护，单位是毫秒。
+线程数：当单台机器上所有入口流量的并发线程数达到阈值即触发系统保护。
+入口QPS：当单台机器上所有入口流量的QPS达到阈值即触发系统保护。
+
+#### 扩展：自定义异常
+
+```java
+import com.alibaba.csp.sentinel.adapter.servlet.callback.UrlBlockHandler;
+import com.alibaba.csp.sentinel.adapter.servlet.callback.WebCallbackManager;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
+import com.alibaba.csp.sentinel.slots.block.flow.FlowException;
+import com.alibaba.fastjson.JSON;
+import org.springframework.context.annotation.Configuration;
+
+import javax.annotation.PostConstruct;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+@Configuration
+public class SentinelExceptionHandlerPage implements UrlBlockHandler {
+    /**
+     * BlockException 限流接口，包含sentinel的五个异常
+     * <p>
+     * FlowException 限流异常
+     * ParamFlowException 参数限流异常
+     * DegradeException 降级异常
+     * AuthorityException 授权异常
+     * SystemBlockException 系统负载异常
+     */
+
+
+    @Override
+    public void blocked(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, BlockException e) throws IOException {
+        httpServletResponse.setContentType("application/json;charset=utf-8");
+        ResponseData data = null;
+
+        if (e instanceof FlowException) {
+            data = new ResponseData(-1, "接口被限流啦");
+        } else if (e instanceof DegradeException) {
+            data = new ResponseData(-2, "接口降级啦");
+        }
+
+        httpServletResponse.getWriter().write(JSON.toJSONString(data));
+    }
+
+    //我猜要怎么做的原因依旧是将默认的filter关掉了已经
+    @PostConstruct
+    public void intiUrlHandler() {
+        WebCallbackManager.setUrlBlockHandler(new SentinelExceptionHandlerPage());
+    }
+}
+
+class ResponseData {
+    private int code;
+    private String message;
+
+    public ResponseData(int code, String message) {
+        this.code = code;
+        this.message = message;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public ResponseData setMessage(String message) {
+        this.message = message;
+        return this;
+    }
+
+    public int getCode() {
+        return code;
+    }
+
+    public ResponseData setCode(int code) {
+        this.code = code;
+        return this;
+    }
+}
+```
+
+另外是针对url做的所以需要，对url路径设置规则才能失效对@SentinelResource注解配置的名称配置规则不生效
+
 ## 未完。。。。。。
