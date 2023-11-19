@@ -8,7 +8,7 @@ service dao controller和普通springboot一致，接下来展示maven构造pom.
 
 ### 项目结构展示图
 
-![image-20231107224505889](C:\Users\86157\AppData\Roaming\Typora\typora-user-images\image-20231107224505889.png)
+![image-20231107224505889](D:\note-md\spring-cloud-alibaba\image-20231107224505889.png)
 
 ### 搭建父亲模块
 
@@ -718,5 +718,208 @@ public class MyCustomLoadBalancer implements LoadBalancer {
 }
 
 ```
+
+
+
+## Sentinel组件的使用
+
+### 基本安装以及使用
+
+#### 1-下载和配置及启动
+
+下载地址:[github sentinel jar 包版本下载](https://github.com/alibaba/Sentinel/releases)
+
+下载好版本之后，启动如下：
+
+```bash
+java -Dserver.port=8099 -Dcsp.sentinel.dashboard.server=localhost:8099 -Dproject.name=sentinel-center -jar sentinel-dashboard-1.7.1.jar
+```
+
+或者配置到IDEA中：
+
+![image-20231119114336933](D:\note-md\spring-cloud-alibaba\image-20231119114336933.png)
+
+接下来对于上游需要限流的服务进行配置
+
+pom.xml
+
+```xml
+         <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+        </dependency>
+```
+
+.yml配置文件
+
+```yaml
+spring:
+	cloud:
+        sentinel:
+          transport:
+            dashboard: localhost:8099
+            port: 9400
+    #      eager: true #取消懒加载
+```
+
+
+
+#### 2-启动相关服务以及Sentinel
+
+按照道理这样就可以启动服务，调用一下接口就可以进行监控了，但是很奇怪监控不到我的资源。。。。。
+
+![image-20231119115500154](D:\note-md\spring-cloud-alibaba\image-20231119115500154.png)
+
+最后在Controller中加上@SentinelResource才能被监控，目前我只有这样解决。。。等后续有时间研究一下为什么。
+
+```java
+ 	@SentinelResource //不加上这个注解无法被监控
+    @RequestMapping("/order/test")
+    public String test(){
+        return "测试并发";
+    }
+```
+
+测试调用一下，成功监控到了资源：
+
+![image-20231119115934090](D:\note-md\spring-cloud-alibaba\image-20231119115934090.png)
+
+#### 3-流控规则
+
+当点开+流控可以发现，有很多可以配置的规则：
+
+![image-20231119120136030](D:\note-md\spring-cloud-alibaba\image-20231119120136030.png)
+
+基本的QPS：每秒可以接收的请求
+
+线程数：最大可以接收的线程数：可以用jmeter可以模拟线程并发展示效果。
+
+
+
+流控模式：
+
+-直接：只针对当前资源进行流控。
+
+-关联：针对关联的资源，当关联资源达到了流控设置的QPS或者线程数，就会对当前资源进行限流(适合做资源的让步，或者说确定优先级)。
+
+-链路：这个模式很好理解，尤其是在微服务间相互调用情况下尤为常见（a->b->d）
+
+假设我以a为入口资源，d为终点资源，对这条链路进行限制的话，则资源a,b,d均会被限制访问。
+
+##### 链路规则的坑
+
+sentinel需要达到1.7.0及以上，SpringCloudAlibaba 在2.1.1以上可以如下配置。
+
+并且设置：
+
+让[Sentinel](https://so.csdn.net/so/search?q=Sentinel&spm=1001.2101.3001.7020) 源码中 CommonFilter 中的 WEB_CONTEXT_UNIFY 参数为 false，将其配置为 false 即可根据不同的URL 进行链路限流，如果不配置将不会生效。
+
+```yaml
+spring:
+  cloud:
+    sentinel:
+      transport:
+        dashboard: localhost:8099
+        port: 9400
+	  # 配置为false
+      web-context-unify: false
+```
+
+
+
+springcloud Alibaba在2.1.1以下或者上述不生效可以尝试如下：
+
+```yaml
+    sentinel:
+#      web-context-unify: false #关闭context整合
+      transport:
+        dashboard: localhost:8099
+        port: 9400
+      filter:
+        enabled: false #关闭，并且自定义过滤器
+
+```
+
+引入依赖：
+
+```xml
+       <!--需要这个依赖，不然后续配置SentinelContextFilter没有CommonFilter-->
+		<dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-web-servlet</artifactId>
+        </dependency>
+```
+
+配置自定义filter for sentinel context
+
+```java
+import com.alibaba.csp.sentinel.adapter.servlet.CommonFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class FilterContextConfig {
+	/**
+     * @NOTE 在spring-cloud-alibaba v2.1.1.RELEASE及前，sentinel1.7.0及后，关闭URL PATH聚合需要通过该方式，spring-cloud-alibaba v2.1.1.RELEASE后，可以通过配置关闭：spring.cloud.sentinel.web-context-unify=false
+     * 手动注入Sentinel的过滤器，关闭Sentinel注入CommonFilter实例，修改配置文件中的 spring.cloud.sentinel.filter.enabled=false
+     * 入口资源聚合问题：https://github.com/alibaba/Sentinel/issues/1024 或 https://github.com/alibaba/Sentinel/issues/1213
+     * 入口资源聚合问题解决：https://github.com/alibaba/Sentinel/pull/1111
+     */
+    @Bean
+    public FilterRegistrationBean sentinelFilterRegistration() {
+        FilterRegistrationBean registration = new FilterRegistrationBean();
+        registration.setFilter(new CommonFilter());
+        registration.addUrlPatterns("/*");
+        // 入口资源关闭聚合
+        registration.addInitParameter(CommonFilter.WEB_CONTEXT_UNIFY, "false");
+        registration.setName("sentinelFilter");
+        registration.setOrder(1);
+        return registration;
+    }
+}
+
+```
+
+
+
+接下来针对两个链路来模拟一下：
+
+```java
+//service中
+ 	@SentinelResource("lianlu")
+    @Override
+    public String test() {
+        return "链路";
+    }
+//controller中调用
+	@SentinelResource
+    @RequestMapping("/order/message")
+    public String message(){
+        return "测试高并发"+orderService.test();
+    }
+
+    @SentinelResource
+    @RequestMapping("/order/test")
+    public String test(){
+        return "测试并发"+orderService.test();
+    }
+```
+
+
+
+成功之后还有一个点。。如果是链路模式下的话限制链路的资源不要写@SentinelResource中设置的名称，不然不生效，后续研究为啥。。关联和直接的话没问题。
+
+#### 4-流控效果
+
+前面默认的都是快速失败：
+
+以下三种;
+
+1-快速失败：达到最大阈值直接抛出异常
+
+2-warm up：一开始阈值设置的最大阈值的三分之一，然后慢慢增长直到最大阈值，适用于将突然增大的流量徒步转换为徒步增长的场景
+
+3-排队等待: 字面意思，设置超时时间，排队时间超过时间限制则失败抛异常。
 
 ## 未完。。。。。。
