@@ -8,7 +8,7 @@
 
 将下载后的压缩包解压即可
 
-![image-20231108232437542](C:\Users\86157\AppData\Roaming\Typora\typora-user-images\image-20231108232437542.png)
+![image-20231108232437542](1.png)
 
 得到一个jar包
 
@@ -63,7 +63,7 @@ java -jar bfg解压的jar包路径 --replace-text replacements.txt xx.git
 
 执行后会有类似的展示：
 
-![image-20231108233533883](C:\Users\86157\AppData\Roaming\Typora\typora-user-images\image-20231108233533883.png)
+![image-20231108233533883](image-20231108233533883.png)
 
 #### push到仓库
 
