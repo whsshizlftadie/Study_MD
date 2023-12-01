@@ -123,8 +123,6 @@ public void workProduct(){
 
 
 
-
-
 ###### 1-3 发布订阅模式
 
 ```java
@@ -149,7 +147,7 @@ public Queue fanoutQueue1() {
     false：指定队列是否为自动删除队列。如果设置为 true，则当没有任何消费者连接到该队列时，RabbitMQ 服务器会自动删除该队列。
     null：用于指定队列的其他参数，例如队列的过期时间等。
     **/
-    return new Queue("fanoutQueue1", true, false, false, null);
+    return new Queue("fanoutQueue1", true, false, false,  );
 }
  
 @Bean
