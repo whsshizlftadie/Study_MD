@@ -214,6 +214,8 @@ docker run  -p 18080:8080 -d --name=xxl-job-admin --restart=always -v /mydata/xx
 
 浏览器访问：账号：admin  密码：123456
 
+123456==aGVsbG8sIEp1ZGdlMAo
+
 修改默认密码也是在浏览器中
 ```
 
